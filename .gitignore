@@ -1,0 +1,25 @@
+# ignore the updates of the environment
+/AttenPASOH/
+
+# ignore the updates of the output files
+/results/
+
+# ignore the updates of the pycache
+/utils/__pycache__/
+
+# ignore the updates of the DS_Store
+.DS_Store
+
+# ignore the updates of the data
+data
+
+# ignore the updates of the processed results
+results analysis/processed results
+
+results analysis/processed results (fine tuning)
+
+results analysis/processed results (small sample)
+
+# ignore the updates of results of reviewer
+
+results of reviewer
