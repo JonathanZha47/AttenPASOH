@@ -10,8 +10,6 @@
 # ignore the updates of the DS_Store
 .DS_Store
 
-# ignore the updates of the data
-data
 
 # ignore the updates of the processed results
 results analysis/processed results
