@@ -1,40 +1,35 @@
 from dataloader.dataloader import XJTUdata
-from Model.CompareModels.BaselineModel import PINN
+from Model.Compare_Models.BaselineModel import PINN
 import argparse
 import os
 
 os.environ['CUDA_VISIBLE_DEVICES'] = '0'
 
 def load_data(args,small_sample=None):
-    root = 'data/XJTU data'
+    root = os.path.join('data', 'XJTU data')
     data = XJTUdata(root=root, args=args)
-    train_list = []
-    test_list = []
     files = os.listdir(root)
+    data_list = []
     for file in files:
         if args.batch in file:
-            if '4' in file or '8' in file:
-                test_list.append(os.path.join(root, file))
-            else:
-                train_list.append(os.path.join(root, file))
+            data_list.append(os.path.join(root, file))
     if small_sample is not None:
-        train_list = train_list[:small_sample]
+        data_list = data_list[:small_sample]
 
-    train_loader = data.read_all(specific_path_list=train_list)
-    test_loader = data.read_all(specific_path_list=test_list)
-    dataloader = {'train': train_loader['train_2'],
-                  'valid': train_loader['valid_2'],
-                  'test': test_loader['test_3']}
+    loader = data.read_all(specific_path_list=data_list)
+    dataloader = {'train': loader['train'],
+                  'valid': loader['valid'],
+                  'test': loader['test']}
     return dataloader
 
 def main():
     args = get_args()
     batchs = ['2C', '3C', 'R2.5', 'R3', 'RW', 'satellite']
-    for i in range(6):
+    for i in range(1):
         batch = batchs[i]
         setattr(args, 'batch', batch)
         for e in range(10):
-            save_folder = 'results of reviewer/XJTU(Baseline) results/' + str(i) + '-' + str(i) + '/Experiment' + str(e + 1)
+            save_folder = 'results of reviewer/XJTU(Baseline wiz physics loss(y)) results/' + str(i) + '-' + str(i) + '/Experiment' + str(e + 1)
             if not os.path.exists(save_folder):
                 os.makedirs(save_folder)
             log_dir = 'logging.txt'
@@ -79,7 +74,7 @@ def get_args():
                              '(if -1, read all data and random split train and test sets; '
                              'else, read the corresponding batch data)')
     parser.add_argument('--batch',type=str,default='2C',choices=['2C','3C','R2.5','R3','RW','satellite'])
-    parser.add_argument('--batch_size', type=int, default=256, help='batch size')
+    parser.add_argument('--batch_size', type=int, default=512, help='batch size')
     parser.add_argument('--normalization_method', type=str, default='min-max', help='min-max,z-score')
 
     # scheduler related

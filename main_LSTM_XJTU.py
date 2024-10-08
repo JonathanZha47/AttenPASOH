@@ -1,9 +1,30 @@
-from dataloader.dataloader import XJTUdata
-from Model.Baseline_Exploration.NoPhysicsModel import PINN
+from dataloader.timeseriesloader import XJTUdata
+from Model.Compare_Models.LSTMmodel import LSTMNet
 import argparse
 import os
 
 os.environ['CUDA_VISIBLE_DEVICES'] = '0'
+def load_data_unseen_data(args,small_sample=None):
+    root = 'data/XJTU data'
+    data = XJTUdata(root=root, args=args)
+    train_list = []
+    test_list = []
+    files = os.listdir(root)
+    for file in files:
+        if args.batch in file:
+            if '4' in file or '8' in file:
+                test_list.append(os.path.join(root, file))
+            else:
+                train_list.append(os.path.join(root, file))
+    if small_sample is not None:
+        train_list = train_list[:small_sample]
+
+    train_loader = data.read_all(specific_path_list=train_list)
+    test_loader = data.read_all(specific_path_list=test_list)
+    dataloader = {'train': train_loader['train_2'],
+                  'valid': train_loader['valid_2'],
+                  'test': test_loader['test_3']}
+    return dataloader
 
 def load_data(args,small_sample=None):
     root = os.path.join('data', 'XJTU data')
@@ -25,20 +46,20 @@ def load_data(args,small_sample=None):
 def main():
     args = get_args()
     batchs = ['2C', '3C', 'R2.5', 'R3', 'RW', 'satellite']
-    for i in range(1):
+    for i in range(6):
         batch = batchs[i]
         setattr(args, 'batch', batch)
         for e in range(10):
-            save_folder = 'results of reviewer/XJTU(Baseline wiz no physics loss) results/' + str(i) + '-' + str(i) + '/Experiment' + str(e + 1)
+            save_folder = 'results of reviewer/XJTU(lstm) results/' + str(i) + '-' + str(i) + '/Experiment' + str(e + 1)
             if not os.path.exists(save_folder):
                 os.makedirs(save_folder)
             log_dir = 'logging.txt'
             setattr(args, "save_folder", save_folder)
             setattr(args, "log_dir", log_dir)
 
-            dataloader = load_data(args)
-            pinn = PINN(args)
-            pinn.Train(trainloader=dataloader['train'],validloader=dataloader['valid'],testloader=dataloader['test'])
+            dataloader = load_data_unseen_data(args)
+            lstm = LSTMNet(args)
+            lstm.Train(trainloader=dataloader['train'],validloader=dataloader['valid'],testloader=dataloader['test'])
 
 def small_sample():
     args = get_args()
@@ -74,7 +95,7 @@ def get_args():
                              '(if -1, read all data and random split train and test sets; '
                              'else, read the corresponding batch data)')
     parser.add_argument('--batch',type=str,default='2C',choices=['2C','3C','R2.5','R3','RW','satellite'])
-    parser.add_argument('--batch_size', type=int, default=256, help='batch size')
+    parser.add_argument('--batch_size', type=int, default=512, help='batch size')
     parser.add_argument('--normalization_method', type=str, default='min-max', help='min-max,z-score')
 
     # scheduler related
@@ -97,10 +118,9 @@ def get_args():
     parser.add_argument('--log_dir', type=str, default='text log.txt', help='log dir, if None, do not save')
     parser.add_argument('--save_folder', type=str, default='results of reviewer/XJTU results', help='save folder')
 
+    ## GRU related
+    parser.add_argument('--seq_length', type=int, default=3, help='seq_length')
 
-    # noise related
-    parser.add_argument('--noise_mean',type=float,default=0,help='noise_mean')
-    parser.add_argument('--noise_std',type=float,default=1,help='noise_std')
     args = parser.parse_args()
     return args
 
