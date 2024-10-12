@@ -21,3 +21,6 @@ results analysis/processed results (small sample)
 # ignore the updates of results of reviewer
 
 results of reviewer
+
+/Model/__pycache__/
+

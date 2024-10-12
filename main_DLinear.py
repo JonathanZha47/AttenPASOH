@@ -1,44 +1,67 @@
-from dataloader.NASAloader import NASAdata
-from Model.Loss_Attention_Models.LAPINN_NASA import LAPINN
+
+from dataloader.itransformerloader import XJTUdata
+from Model.Compare_Models.DLinearModel import DLinearNet
 import argparse
 import os
 
 os.environ['CUDA_VISIBLE_DEVICES'] = '0'
-
-def load_data(args,small_sample=None):
-    root = 'data/NASA data'
-    data_list  = []
-    for batch in ['Batch1','Batch2','Batch3','Batch4','Batch5','Batch6','Batch7','Batch9']:
-        batch_root = os.path.join(root, batch)
-        files = os.listdir(batch_root)
-        for f in files:
-            data_list.append(os.path.join(batch_root, f))
+def load_data_unseen_data(args,small_sample=None):
+    root = 'data/XJTU data'
+    data = XJTUdata(root=root, args=args)
+    train_list = []
+    test_list = []
+    files = os.listdir(root)
+    for file in files:
+        if args.batch in file:
+            if '4' in file or '8' in file:
+                test_list.append(os.path.join(root, file))
+            else:
+                train_list.append(os.path.join(root, file))
     if small_sample is not None:
         train_list = train_list[:small_sample]
-    
-    data = NASAdata(root=root, args=args)
+
+    train_loader = data.read_all(specific_path_list=train_list)
+    test_loader = data.read_all(specific_path_list=test_list)
+    dataloader = {'train': train_loader['train_2'],
+                  'valid': train_loader['valid_2'],
+                  'test': test_loader['test_3']}
+    return dataloader
+
+def load_data(args,small_sample=None):
+    root = os.path.join('data', 'XJTU data')
+    data = XJTUdata(root=root, args=args)
+    files = os.listdir(root)
+    data_list = []
+    for file in files:
+        if args.batch in file:
+            data_list.append(os.path.join(root, file))
+    if small_sample is not None:
+        data_list = data_list[:small_sample]
+
     loader = data.read_all(specific_path_list=data_list)
-    
-    dataloader = {'train': loader['train'], 'valid': loader['valid'], 'test': loader['test']}
+    dataloader = {'train': loader['train'],
+                  'valid': loader['valid'],
+                  'test': loader['test']}
     return dataloader
 
 def main():
     args = get_args()
-    batchs = ['Batch1','Batch2','Batch3','Batch4','Batch5','Batch6','Batch7','Batch9']
-    for i in range(8):
+    print("args in experiment: ", args)
+    batchs = ['2C', '3C', 'R2.5', 'R3', 'RW', 'satellite']
+    for i in range(6):
         batch = batchs[i]
         setattr(args, 'batch', batch)
         for e in range(10):
-            save_folder = 'results of reviewer/NASA(LAPINN+param tune) results4/' + str(i) + '-' + str(i) + '/Experiment' + str(e + 1)
+            save_folder = 'results of reviewer/XJTU(dlinear) results/' + str(i) + '-' + str(i) + '/Experiment' + str(e + 1)
             if not os.path.exists(save_folder):
                 os.makedirs(save_folder)
             log_dir = 'logging.txt'
             setattr(args, "save_folder", save_folder)
             setattr(args, "log_dir", log_dir)
 
-            dataloader = load_data(args)
-            pinn = LAPINN(args)
-            pinn.Train(trainloader=dataloader['train'],validloader=dataloader['valid'],testloader=dataloader['test'])
+            dataloader = load_data_unseen_data(args)
+            dlinear = DLinearNet(args)
+            dlinear.Train(trainloader=dataloader['train'],validloader=dataloader['valid'],testloader=dataloader['test'])
 
 def small_sample():
     args = get_args()
@@ -58,7 +81,7 @@ def small_sample():
                 setattr(args, "save_folder", save_folder)
                 setattr(args, "log_dir", log_dir)
                 dataloader = load_data(args,small_sample=n)
-                pinn = LAPINN(args)
+                pinn = PINN(args)
                 pinn.Train(trainloader=dataloader['train'], validloader=dataloader['valid'],
                            testloader=dataloader['test'])
 
@@ -78,33 +101,31 @@ def get_args():
     parser.add_argument('--normalization_method', type=str, default='min-max', help='min-max,z-score')
 
     # scheduler related
-    parser.add_argument('--epochs', type=int, default=1000, help='epoch')
-    parser.add_argument('--early_stop', type=int, default=100, help='early stop')
-    parser.add_argument('--base_lr', type=float, default=0.001, help='learning rate')
+    parser.add_argument('--epochs', type=int, default=200, help='epoch')
+    parser.add_argument('--early_stop', type=int, default=20, help='early stop')
     parser.add_argument('--warmup_epochs', type=int, default=30, help='warmup epoch')
-    parser.add_argument('--u_warmup_lr', type=float, default=0.002, help='warmup lr of solution u')
-    parser.add_argument('--u_final_lr', type=float, default=0.0002, help='final lr of solution u')
-    parser.add_argument('--F_warmup_lr', type=float, default=0.002, help='warmup lr of dynamical F')
-    parser.add_argument('--F_final_lr', type=float, default=0.0002, help='final lr of dynamical F')
-    parser.add_argument('--lan_warmup_lr', type=float, default=0.001, help='warmup lr of LAN')
-    parser.add_argument('--lan_final_lr', type=float, default=0.0005, help='final lr of LAN')
-    parser.add_argument('--iter_per_epoch', type=int, default=1, help='iter per epoch')
+    parser.add_argument('--warmup_lr', type=float, default=0.002, help='warmup lr')
+    parser.add_argument('--lr', type=float, default=0.01, help='base lr')
+    parser.add_argument('--final_lr', type=float, default=0.0002, help='final lr')
+    parser.add_argument('--lr_F', type=float, default=0.001, help='lr of F')
 
     # model related
     parser.add_argument('--F_layers_num', type=int, default=3, help='the layers num of F')
     parser.add_argument('--F_hidden_dim', type=int, default=60, help='the hidden dim of F')
-    parser.add_argument('--LAN_hidden_dim', type=int, default=60, help='LAN hidden dim')
 
     # loss related
-    parser.add_argument('--alpha', type=float, default=1.3, help='loss = alpha * l_data + beta * l_PDE + gamma * l_physics')
-    parser.add_argument('--beta', type=float, default=0.7, help='loss = alpha * l_data + beta * l_PDE + gamma * l_physics')
-    parser.add_argument('--gamma', type=float, default=1.0, help='loss = alpha * l_data + beta * l_PDE + gamma * l_physics')
+    parser.add_argument('--alpha', type=float, default=0.7, help='loss = l_data + alpha * l_PDE + beta * l_physics')
+    parser.add_argument('--beta', type=float, default=20, help='loss = l_data + alpha * l_PDE + beta * l_physics')
 
     parser.add_argument('--log_dir', type=str, default='text log.txt', help='log dir, if None, do not save')
     parser.add_argument('--save_folder', type=str, default='results of reviewer/XJTU results', help='save folder')
 
-    args = parser.parse_args()
-    return args
+    ## DLinear related
+    parser.add_argument('--individual', action='store_true', default=False, help='DLinear: a linear layer for each variate(channel) individually')
+    parser.add_argument('--enc_in', type=int, default=18, help='encoder input size')
+    parser.add_argument('--seq_length', type=int, default=3, help='sequence length')
+    parser.add_argument('--pred_len', type=int, default=3, help='prediction length')
+    return parser.parse_args()
 
 
 if __name__ == '__main__':
