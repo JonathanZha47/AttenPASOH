@@ -24,3 +24,7 @@ results of reviewer
 
 /Model/__pycache__/
 
+/Model/Compare_Models/__pycache__/
+
+/dataloader/__pycache__/
+

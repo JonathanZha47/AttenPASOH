@@ -95,33 +95,35 @@ class DF():
             y = df.iloc[:,-1].values
             noise = np.random.normal(loc=noise_mean, scale=noise_std, size=x.shape)
             x_noisy = x + noise
-            return (x_noisy, y)
+            x_seq = df.values
+            y_seq = df.iloc[:,-1].values
+            return (x_noisy, y), (x_seq, y_seq)
         else:
             df = self.read_one_csv(path,nominal_capacity)
             x = df.iloc[:,:-1].values
             y = df.iloc[:,-1].values
-            return (x, y)
+            x_seq = df.values
+            y_seq = df.iloc[:,-1].values
+            return (x_noisy, y), (x_seq, y_seq)
         
-    def create_overlapping_sequences(self, X, Y, seq_length):
-        """
-        Creates overlapping sequences from the data.
-        :param X: numpy array of input features, shape (num_samples, feature_dim)
-        :param Y: numpy array of labels, shape (num_samples, 1)
-        :param seq_length: Length of each sequence
-        :param stride: Number of steps to move the window for the next sequence
-        :return: numpy arrays of X and Y sequences
-        """
-        num_samples = X.shape[0]
-        feature_dim = X.shape[1]
+    def create_sequence(self, x, y, seq_length):
+        '''
+        Create sequences from the full data with the length of `seq_length`.
+        :param x: The full sequence from the CSV file.
+        :param seq_length: Length of each sequence.
+        :return: The input sequences (X) and the corresponding last element as the label (y_pred).
+        '''
+        sequences = []
+        labels = []
+        
+        for i in range(len(x) - seq_length + 1):  # Make sure you don't go out of bounds
+            seq = x[i:i + seq_length]  # Get the sequence with the specified seq_length
+            label = seq[:, -1:]  # Extract the last element along the 18 feature dimensions, shape [seq_length, 1]
+            sequences.append(seq)
+            labels.append(label)
+        
+        return np.array(sequences), np.array(labels)
 
-        sequences_X = []
-        sequences_Y = []
-
-        for i in range(0, num_samples - seq_length + 1):
-            sequences_X.append(X[i:i+seq_length])
-            sequences_Y.append(Y[i:i+seq_length])
-
-        return np.array(sequences_X), np.array(sequences_Y)
     
     def load_all_battery(self,path_list,nominal_capacity,noise_option,noise_mean,noise_std):
         '''
@@ -132,44 +134,49 @@ class DF():
         :return: Dataloader
         '''
         X , Y = [], []
+        X_seq, Y_seq = [], []
         if self.args.log_dir is not None and self.args.save_folder is not None:
             save_name = os.path.join(self.args.save_folder,self.args.log_dir)
             write_to_txt(save_name,'data path:')
             write_to_txt(save_name,str(path_list))
         for path in path_list:
-            (x,y)= self.load_one_battery(path, nominal_capacity,noise_option,noise_mean,noise_std)
+            (x,y),(x_seq,y_seq) = self.load_one_battery(path, nominal_capacity,noise_option,noise_mean,noise_std)
             # print(path)
             # print(x1.shape, x2.shape, y1.shape, y2.shape)
             X.append(x)
             Y.append(y)
+            X_seq.append(x_seq)
+            Y_seq.append(y_seq)
 
         X = np.concatenate(X, axis=0)
         Y = np.concatenate(Y, axis=0)
+        X_seq = np.concatenate(X_seq, axis=0)
+        Y_seq = np.concatenate(Y_seq, axis=0)
 
 
         # 创建基于历史cycle数据的序列
         seq_length = self.args.seq_length
-        X_spatio, Y_spatio = self.create_overlapping_sequences(X, Y, seq_length)
+        sequence, label = self.create_sequence(X_seq, Y_seq, seq_length)
         
         # 基于历史cycle数据的序列划分训练集和测试集
-        tensor_X_spatio = torch.from_numpy(X_spatio).float()
-        tensor_Y_spatio = torch.from_numpy(Y_spatio).float()
+        tensor_sequence = torch.from_numpy(sequence).float()
+        tensor_label = torch.from_numpy(label).float()
 
-        split = int(X_spatio.shape[0] * 0.8)
-        train_X_spatio, test_X_spatio = tensor_X_spatio[:split], tensor_X_spatio[split:]
-        train_Y_spatio, test_Y_spatio = tensor_Y_spatio[:split], tensor_Y_spatio[split:]
+        split = int(sequence.shape[0] * 0.8)
+        train_sequence, test_sequence = tensor_sequence[:split], tensor_sequence[split:]
+        train_label, test_label = tensor_label[:split], tensor_label[split:]
 
         #因为要捕捉时空关系，所以这里不要shuffle
-        train_X_spatio, valid_X_spatio, train_Y_spatio, valid_Y_spatio = \
-            train_test_split(train_X_spatio, train_Y_spatio, test_size=0.2, random_state=420)
+        train_sequence, valid_sequence, train_label, valid_label = \
+            train_test_split(train_sequence, train_label, test_size=0.2, random_state=420)
         
-        train_loader_spatio = DataLoader(TensorDataset(train_X_spatio, train_Y_spatio),
+        train_loader_seq = DataLoader(TensorDataset(train_sequence, train_label),
                                             batch_size=self.args.batch_size,
                                             shuffle=False)
-        valid_loader_spatio = DataLoader(TensorDataset(valid_X_spatio, valid_Y_spatio),
+        valid_loader_seq = DataLoader(TensorDataset(valid_sequence, valid_label),
                                             batch_size=self.args.batch_size,
                                             shuffle=False)
-        test_loader_spatio = DataLoader(TensorDataset(test_X_spatio, test_Y_spatio),
+        test_loader_seq = DataLoader(TensorDataset(test_sequence, test_label),
                                             batch_size=self.args.batch_size,
                                             shuffle=False)
 
@@ -217,7 +224,7 @@ class DF():
                                     batch_size=self.args.batch_size,
                                     shuffle=False)
 
-        loader = {'train_spatio':train_loader_spatio, 'valid_spatio': valid_loader_spatio, 'test_spatio': test_loader_spatio,
+        loader = {'train_seq':train_loader_seq, 'valid_seq': valid_loader_seq, 'test_seq': test_loader_seq,
                   'train': train_loader, 'valid': valid_loader, 'test': test_loader,
                   'train_2': train_loader_2,'valid_2': valid_loader_2,
                   'test_3': test_loader_3}
@@ -313,6 +320,7 @@ class XJTUdata(DF):
             return self.load_all_battery(path_list=file_list,nominal_capacity=self.nominal_capacity)
         else:
             return self.load_all_battery(path_list=specific_path_list,nominal_capacity=self.nominal_capacity,noise_option=self.noise_option,noise_mean=self.noise_mean,noise_std=self.noise_std)
+        
 if __name__ == '__main__':
 
     def get_args():
@@ -328,13 +336,12 @@ if __name__ == '__main__':
         parser.add_argument('--num_ways',type=int,default=1,help='num_ways')
         parser.add_argument('--num_shots',type=int,default=5,help='num_shots')
         parser.add_argument('--train_test_split',type=int,default=2,help='train_test_split')
-        parser.add_argument('--noise_mean',type=float,default=0,help='noise_mean')
-           # noise related
+
         parser.add_argument('--noise_option', action='store_true', default=True, help='whether to add noise into the dataset')
         parser.add_argument('--no_noise', action='store_false', dest='noise_option', help='disable noise in the dataset')
 
+        parser.add_argument('--noise_mean',type=float,default=0,help='noise_mean')
         parser.add_argument('--noise_std',type=float,default=1,help='noise_std')
-        parser.add_argument('--noise_option',type=bool,default=True,help='whether add the noise into the dataset')
         return parser.parse_args()
 
     args = get_args()

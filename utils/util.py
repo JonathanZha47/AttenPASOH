@@ -48,7 +48,7 @@ def eval_metrix(true_label,pred_label):
     L1error = l1_relative_error(true_label,pred_label)
     L2error = l2_relative_error(true_label,pred_label)
 
-    return [MAE,MAPE,MSE,RMSE,AdjustRsquare,L1error,L2error]
+    return [MSE,MAE,MAPE,RMSE,AdjustRsquare,L1error,L2error]
 
 def adjusted_r2_score(y_true, y_pred, n, p):
     r2 = metrics.r2_score(y_true, y_pred)
