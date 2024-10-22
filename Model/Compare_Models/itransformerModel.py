@@ -24,7 +24,7 @@ class itransformer(nn.Module):
             depth = 3,                          # depth
             heads = 8,                          # attention heads
             dim_head = 64,                      # head dimension
-            pred_length = 1,     # can be one prediction, or many
+            pred_length = 20,     # can be one prediction, or many
             use_reversible_instance_norm = True # use reversible instance normalization
         ).to(device)
         if args.save_folder is not None and not os.path.exists(args.save_folder):
@@ -99,7 +99,7 @@ class itransformer(nn.Module):
             x = x.to(device)
             y = y.to(device)
             outputsDict = self.itransformer(x)
-            outputs = outputsDict[1]
+            outputs = outputsDict[20]
             outputs = outputs[:, :, -1]  # Shape becomes [512, 1]
 
             loss = self.loss_func(outputs,y)
@@ -199,9 +199,9 @@ if __name__ == "__main__":
         parser.add_argument('--checkpoints', type=str, default='./checkpoints/', help='location of model checkpoints')
 
         # forecasting task
-        parser.add_argument('--seq_len', type=int, default=3, help='input sequence length')
-        parser.add_argument('--label_len', type=int, default=3, help='start token length') # no longer needed in inverted Transformers
-        parser.add_argument('--pred_len', type=int, default=1, help='prediction sequence length')
+        parser.add_argument('--seq_len', type=int, default=20, help='input sequence length')
+        parser.add_argument('--label_len', type=int, default=20, help='start token length') # no longer needed in inverted Transformers
+        parser.add_argument('--pred_len', type=int, default=20, help='prediction sequence length')
 
         # model define
         parser.add_argument('--enc_in', type=int, default=17, help='encoder input size')

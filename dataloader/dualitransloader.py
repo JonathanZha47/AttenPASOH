@@ -115,15 +115,12 @@ class DF():
         '''
         sequences = []
         labels = []
-        
-        for i in range(len(x) - seq_length + 1):  # Make sure you don't go out of bounds
-            seq = x[i:i + seq_length]  # Get the sequence with the specified seq_length
-            label = seq[:, -1:]  # Extract the last element along the 18 feature dimensions, shape [seq_length, 1]
+        for i in range(len(x) - seq_length):
+            seq = x[i:i + seq_length]
+            label = seq[:,-1]  # Extract the full sequence.
             sequences.append(seq)
             labels.append(label)
-        
         return np.array(sequences), np.array(labels)
-
     
     def load_all_battery(self,path_list,nominal_capacity,noise_option,noise_mean,noise_std):
         '''
@@ -133,14 +130,13 @@ class DF():
         :param batch_size: batch size
         :return: Dataloader
         '''
-        X , Y = [], []
-        X_seq, Y_seq = [], []
+        X , Y , X_seq, Y_seq = [], [], [], []
         if self.args.log_dir is not None and self.args.save_folder is not None:
             save_name = os.path.join(self.args.save_folder,self.args.log_dir)
             write_to_txt(save_name,'data path:')
             write_to_txt(save_name,str(path_list))
         for path in path_list:
-            (x,y),(x_seq,y_seq) = self.load_one_battery(path, nominal_capacity,noise_option,noise_mean,noise_std)
+            (x,y),(x_seq, y_seq)= self.load_one_battery(path, nominal_capacity,noise_option,noise_mean,noise_std)
             # print(path)
             # print(x1.shape, x2.shape, y1.shape, y2.shape)
             X.append(x)
@@ -152,31 +148,27 @@ class DF():
         Y = np.concatenate(Y, axis=0)
         X_seq = np.concatenate(X_seq, axis=0)
         Y_seq = np.concatenate(Y_seq, axis=0)
-
-
         # 创建基于历史cycle数据的序列
         seq_length = self.args.seq_length
-        sequence, label = self.create_sequence(X_seq, Y_seq, seq_length)
-        
+        sequences, labels = self.create_sequence(X_seq, Y_seq, seq_length)
         # 基于历史cycle数据的序列划分训练集和测试集
-        tensor_sequence = torch.from_numpy(sequence).float()
-        tensor_label = torch.from_numpy(label).float()
-
-        split = int(sequence.shape[0] * 0.8)
-        train_sequence, test_sequence = tensor_sequence[:split], tensor_sequence[split:]
-        train_label, test_label = tensor_label[:split], tensor_label[split:]
+        tensor_sequences = torch.from_numpy(sequences).float()
+        tensor_labels = torch.from_numpy(labels).float()
+        split = int(sequences.shape[0] * 0.8)
+        train_sequences, test_sequences = tensor_sequences[:split], tensor_sequences[split:]
+        train_labels, test_labels = tensor_labels[:split], tensor_labels[split:]
 
         #因为要捕捉时空关系，所以这里不要shuffle
-        train_sequence, valid_sequence, train_label, valid_label = \
-            train_test_split(train_sequence, train_label, test_size=0.2, random_state=420)
+        train_sequences, valid_sequences, train_labels, valid_labels = \
+            train_test_split(train_sequences, train_labels, test_size=0.2, random_state=420)
         
-        train_loader_seq = DataLoader(TensorDataset(train_sequence, train_label),
+        train_loader_temporal = DataLoader(TensorDataset(train_sequences, train_labels),
                                             batch_size=self.args.batch_size,
                                             shuffle=False)
-        valid_loader_seq = DataLoader(TensorDataset(valid_sequence, valid_label),
+        valid_loader_temporal = DataLoader(TensorDataset(valid_sequences, valid_labels),
                                             batch_size=self.args.batch_size,
                                             shuffle=False)
-        test_loader_seq = DataLoader(TensorDataset(test_sequence, test_label),
+        test_loader_temporal = DataLoader(TensorDataset(test_sequences, test_labels),
                                             batch_size=self.args.batch_size,
                                             shuffle=False)
 
@@ -224,7 +216,7 @@ class DF():
                                     batch_size=self.args.batch_size,
                                     shuffle=False)
 
-        loader = {'train_seq':train_loader_seq, 'valid_seq': valid_loader_seq, 'test_seq': test_loader_seq,
+        loader = {'train_temporal':train_loader_temporal, 'valid_temporal': valid_loader_temporal, 'test_temporal': test_loader_temporal,
                   'train': train_loader, 'valid': valid_loader, 'test': test_loader,
                   'train_2': train_loader_2,'valid_2': valid_loader_2,
                   'test_3': test_loader_3}
@@ -320,7 +312,6 @@ class XJTUdata(DF):
             return self.load_all_battery(path_list=file_list,nominal_capacity=self.nominal_capacity)
         else:
             return self.load_all_battery(path_list=specific_path_list,nominal_capacity=self.nominal_capacity,noise_option=self.noise_option,noise_mean=self.noise_mean,noise_std=self.noise_std)
-        
 if __name__ == '__main__':
 
     def get_args():
@@ -336,12 +327,13 @@ if __name__ == '__main__':
         parser.add_argument('--num_ways',type=int,default=1,help='num_ways')
         parser.add_argument('--num_shots',type=int,default=5,help='num_shots')
         parser.add_argument('--train_test_split',type=int,default=2,help='train_test_split')
-
+        parser.add_argument('--noise_mean',type=float,default=0,help='noise_mean')
+           # noise related
         parser.add_argument('--noise_option', action='store_true', default=True, help='whether to add noise into the dataset')
         parser.add_argument('--no_noise', action='store_false', dest='noise_option', help='disable noise in the dataset')
 
-        parser.add_argument('--noise_mean',type=float,default=0,help='noise_mean')
         parser.add_argument('--noise_std',type=float,default=1,help='noise_std')
+        parser.add_argument('--noise_option',type=bool,default=True,help='whether add the noise into the dataset')
         return parser.parse_args()
 
     args = get_args()

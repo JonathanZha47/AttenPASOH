@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 from Model.Compare_Models.Autoformer.AutoformerLayer.SelfAttention_Family import ProbAttention, AttentionLayer
 from Model.Compare_Models.Autoformer.AutoformerLayer.Embed import DataEmbedding
-from Model.Compare_Models.Autoformer.AutoformerLayer.Autoformer_EncDec import Encoder, Decoder, EncoderLayer, DecoderLayer, ConvLayer
+from Model.Compare_Models.Autoformer.AutoformerLayer.Transformer_EncDec import Encoder, Decoder, EncoderLayer, DecoderLayer, ConvLayer
 
 
 class Informer(nn.Module):

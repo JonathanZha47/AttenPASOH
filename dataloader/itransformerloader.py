@@ -94,7 +94,7 @@ class DF():
         labels = []
         for i in range(len(x) - seq_length):
             seq = x[i:i + seq_length]
-            label = seq[-1,-1]  # Extract the full sequence.
+            label = seq[:,-1]  # Extract the full sequence.
             sequences.append(seq)
             labels.append(label)
         return np.array(sequences), np.array(labels)
